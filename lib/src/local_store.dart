@@ -116,6 +116,9 @@ Future<void> _applySchema(Database db) async {
   }
 }
 
+/// Applies the local schema. Used by tests that open their own database.
+Future<void> applyLocalSchema(Database db) => _applySchema(db);
+
 const _mergeTables = [
   'profiles',
   'categories',
@@ -439,7 +442,7 @@ class LocalStore {
       'tasks',
       where: 'profile_id = ?',
       whereArgs: [profileId],
-      orderBy: 'pinned DESC, position ASC, created_at DESC',
+      orderBy: 'pinned DESC, created_at DESC, position DESC',
     );
     final tasks = <Task>[];
     for (final row in rows) {
@@ -774,6 +777,20 @@ class LocalStore {
     }
   }
 
+  Future<void> _upsertById(
+    DatabaseExecutor txn,
+    String table,
+    Map<String, Object?> row,
+  ) async {
+    final updated = await txn.update(
+      table,
+      row,
+      where: 'id = ?',
+      whereArgs: [row['id']],
+    );
+    if (updated == 0) await txn.insert(table, row);
+  }
+
   Future<void> _upsertCloud(
     DatabaseExecutor txn,
     String entity,
@@ -782,31 +799,31 @@ class LocalStore {
   ) async {
     switch (entity) {
       case 'profiles':
-        await txn.insert('profiles', {
+        await _upsertById(txn, 'profiles', {
           'id': id,
           'name': _str(doc, 'name', 'name'),
           'color': _str(doc, 'color', 'color'),
           'created_at': _str(doc, 'createdAt', 'created_at'),
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        });
       case 'categories':
-        await txn.insert('categories', {
+        await _upsertById(txn, 'categories', {
           'id': id,
           'profile_id': _str(doc, 'profileId', 'profile_id'),
           'name': _str(doc, 'name', 'name'),
           'color': _str(doc, 'color', 'color'),
           'emoji': _strOrNull(doc, 'emoji', 'emoji'),
           'created_at': _str(doc, 'createdAt', 'created_at'),
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        });
       case 'tags':
-        await txn.insert('tags', {
+        await _upsertById(txn, 'tags', {
           'id': id,
           'profile_id': _str(doc, 'profileId', 'profile_id'),
           'name': _str(doc, 'name', 'name'),
           'color': _str(doc, 'color', 'color'),
           'created_at': _str(doc, 'createdAt', 'created_at'),
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        });
       case 'tasks':
-        await txn.insert('tasks', {
+        await _upsertById(txn, 'tasks', {
           'id': id,
           'profile_id': _str(doc, 'profileId', 'profile_id'),
           'title': _str(doc, 'title', 'title'),
@@ -820,7 +837,7 @@ class LocalStore {
           'created_at': _str(doc, 'createdAt', 'created_at'),
           'updated_at': _str(doc, 'updatedAt', 'updated_at'),
           'completed_at': _strOrNull(doc, 'completedAt', 'completed_at'),
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        });
         final tagIds = doc['tagIds'] ?? doc['tag_ids'];
         if (tagIds is List) {
           await txn.delete('task_tags', where: 'task_id = ?', whereArgs: [id]);
@@ -837,13 +854,13 @@ class LocalStore {
           'tag_id': _str(doc, 'tagId', 'tag_id'),
         }, conflictAlgorithm: ConflictAlgorithm.ignore);
       case 'subtasks':
-        await txn.insert('subtasks', {
+        await _upsertById(txn, 'subtasks', {
           'id': id,
           'task_id': _str(doc, 'taskId', 'task_id'),
           'title': _str(doc, 'title', 'title'),
           'done': _boolInt(doc, 'done', 'done'),
           'position': _num(doc, 'position', 'position'),
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        });
     }
   }
 

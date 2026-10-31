@@ -56,6 +56,19 @@ String filterLabel(QuickFilter filter) {
   }
 }
 
+IconData filterIcon(QuickFilter filter) {
+  switch (filter) {
+    case QuickFilter.all:
+      return Icons.view_list_outlined;
+    case QuickFilter.today:
+      return Icons.calendar_today_outlined;
+    case QuickFilter.urgent:
+      return Icons.local_fire_department_outlined;
+    case QuickFilter.week:
+      return Icons.date_range_outlined;
+  }
+}
+
 ThemeData buildTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
   final primary = dark ? accentDark : accent;

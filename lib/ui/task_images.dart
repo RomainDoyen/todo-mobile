@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../theme.dart';
 
@@ -41,10 +43,28 @@ Future<List<String>> pickTaskImages(BuildContext context) async {
   if (source == ImageSource.camera) {
     final file = await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
     if (file == null) return const [];
-    return [file.path];
+    return _copyPickerFiles([file]);
   }
   final files = await picker.pickMultiImage(imageQuality: 85);
-  return files.map((file) => file.path).toList();
+  return _copyPickerFiles(files);
+}
+
+/// Gallery paths can be temporary content URIs. Copy the bytes before they disappear.
+Future<List<String>> _copyPickerFiles(List<XFile> files) async {
+  if (files.isEmpty) return const [];
+  final dir = await getTemporaryDirectory();
+  final saved = <String>[];
+  for (final file in files) {
+    final bytes = await file.readAsBytes();
+    var ext = p.extension(file.name).toLowerCase();
+    if (!RegExp(r'^\.(jpe?g|png|webp|gif|heic|heif)$').hasMatch(ext)) ext = '.jpg';
+    final dest = File(
+      p.join(dir.path, 'pick_${DateTime.now().microsecondsSinceEpoch}_${saved.length}$ext'),
+    );
+    await dest.writeAsBytes(bytes, flush: true);
+    saved.add(dest.path);
+  }
+  return saved;
 }
 
 class TaskImageGallery extends StatelessWidget {

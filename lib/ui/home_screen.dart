@@ -119,6 +119,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     padding: const EdgeInsets.only(right: 8),
                                     child: _FilterPill(
                                       label: filterLabel(filter),
+                                      icon: filterIcon(filter),
                                       selected: model.filter == filter,
                                       onTap: () {
                                         setState(() => _homePage = 0);
@@ -304,9 +305,15 @@ class _TaskCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 3,
+                width: 4,
                 height: 42,
-                color: priorityColor(task.priority),
+                decoration: BoxDecoration(
+                  color: priorityColor(task.priority),
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(4),
+                    bottomRight: Radius.circular(4),
+                  ),
+                ),
               ),
               const SizedBox(width: 10),
               GestureDetector(
@@ -672,17 +679,20 @@ class _FilterPill extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.icon,
     this.color,
   });
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final IconData? icon;
   final Color? color;
 
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final tint = selected ? (dark ? accentDark : accent) : muted;
     return Material(
       color: selected
           ? (dark
@@ -698,7 +708,10 @@ class _FilterPill extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (color != null) ...[
+              if (icon != null) ...[
+                Icon(icon, size: 14, color: tint),
+                const SizedBox(width: 6),
+              ] else if (color != null) ...[
                 CircleAvatar(backgroundColor: color, radius: 4),
                 const SizedBox(width: 6),
               ],
@@ -707,7 +720,7 @@ class _FilterPill extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
-                  color: selected ? (dark ? accentDark : accent) : muted,
+                  color: tint,
                 ),
               ),
             ],
