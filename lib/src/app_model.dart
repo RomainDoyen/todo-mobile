@@ -36,6 +36,7 @@ class AppModel extends ChangeNotifier {
   ConnectionStore? _connection;
   LocalStore? _store;
   Timer? _syncTimer;
+  Timer? _pollTimer;
 
   SessionPhase phase = SessionPhase.booting;
   String? bootError;
@@ -260,6 +261,7 @@ class AppModel extends ChangeNotifier {
   Future<void> logout() async {
     final token = _token;
     _syncTimer?.cancel();
+    _pollTimer?.cancel();
     if (token != null) {
       try {
         await _api.post('/auth/logout', token: token);
@@ -664,6 +666,7 @@ class AppModel extends ChangeNotifier {
       if (phase == SessionPhase.signedOut || _store == null) return;
       await reload();
       phase = SessionPhase.ready;
+      _startSyncPoll();
       notifyListeners();
     } catch (error) {
       bootError = error is ApiException
@@ -677,7 +680,8 @@ class AppModel extends ChangeNotifier {
   Future<void> _refreshSyncStatus() async {
     final store = _store;
     if (store == null) return;
-    lastSyncAt = await store.meta('sync:lastSyncAt:${user?.id}');
+    final userId = user?.id;
+    lastSyncAt = userId == null ? null : await store.meta(syncCursorKey(userId));
     if (pendingAuth || _token == null) {
       syncStatus = SyncStatus.offline;
       return;
@@ -690,6 +694,14 @@ class AppModel extends ChangeNotifier {
   void _scheduleSync() {
     _syncTimer?.cancel();
     _syncTimer = Timer(const Duration(milliseconds: 400), () {
+      unawaited(syncNow());
+    });
+  }
+
+  void _startSyncPoll() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (phase != SessionPhase.ready || syncing) return;
       unawaited(syncNow());
     });
   }
@@ -709,6 +721,7 @@ class AppModel extends ChangeNotifier {
   @override
   void dispose() {
     _syncTimer?.cancel();
+    _pollTimer?.cancel();
     unawaited(_store?.close() ?? Future.value());
     super.dispose();
   }

@@ -2,9 +2,20 @@ import 'api_client.dart';
 import 'ids.dart';
 import 'local_store.dart';
 import 'models.dart';
-import 'time.dart';
 
 const _defaultSince = '1970-01-01T00:00:00.000Z';
+
+String syncCursorKey(String userId) => 'sync:lastSyncAt:v2:$userId';
+
+/// Newest document time seen. An empty pull keeps [previous].
+String nextSyncCursor(String? previous, Iterable<String> stamps) {
+  var cursor = (previous == null || previous.isEmpty) ? _defaultSince : previous;
+  for (final stamp in stamps) {
+    if (stamp.compareTo(cursor) > 0) cursor = stamp;
+  }
+  return cursor;
+}
+
 final _appwriteUid = RegExp(r'^[a-zA-Z0-9][a-zA-Z0-9_]{0,35}$');
 
 class SyncEngine {
@@ -70,7 +81,8 @@ class SyncEngine {
   }
 
   Future<void> _pull(String token, String userId) async {
-    final since = await store.meta('sync:lastSyncAt:$userId') ?? _defaultSince;
+    final previous = await store.meta(syncCursorKey(userId));
+    final since = previous ?? _defaultSince;
     final response = await api.get(
       '/sync/pull',
       token: token,
@@ -80,15 +92,20 @@ class SyncEngine {
     final documents = <String, List<Map<String, dynamic>>>{
       for (final entity in syncEntities) entity: <Map<String, dynamic>>[],
     };
+    final stamps = <String>[];
     if (rawDocs is Map) {
       for (final entity in syncEntities) {
         final list = rawDocs[entity];
         if (list is! List) continue;
         documents[entity] = list.whereType<Map>().map(Map<String, dynamic>.from).toList();
+        for (final doc in documents[entity]!) {
+          final stamp = (doc['updatedAt'] ?? '').toString();
+          if (stamp.isNotEmpty) stamps.add(stamp);
+        }
       }
     }
     await store.applyCloudDocuments(documents);
-    await store.setMeta('sync:lastSyncAt:$userId', nowIso());
+    await store.setMeta(syncCursorKey(userId), nextSyncCursor(previous, stamps));
   }
 }
 

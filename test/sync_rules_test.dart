@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:todo_mobile/src/merge.dart';
 import 'package:todo_mobile/src/models.dart';
+import 'package:todo_mobile/src/sync_engine.dart';
 import 'package:todo_mobile/src/time.dart';
 
 Task _task({
@@ -71,6 +72,21 @@ void main() {
     ];
     final visible = filterTasks(tasks, filter: QuickFilter.urgent, now: now);
     expect(visible, hasLength(1));
+  });
+
+  test('sync cursor follows the newest document and ignores the clock', () {
+    expect(nextSyncCursor(null, const []), '1970-01-01T00:00:00.000Z');
+    expect(
+      nextSyncCursor('2026-10-31T09:38:14.673Z', const [
+        '2026-10-31T09:38:14.673Z',
+        '2026-10-31T09:44:57.817Z',
+      ]),
+      '2026-10-31T09:44:57.817Z',
+    );
+    expect(
+      nextSyncCursor('2026-10-31T09:38:14.673Z', const []),
+      '2026-10-31T09:38:14.673Z',
+    );
   });
 
   test('search matches title and description', () {
